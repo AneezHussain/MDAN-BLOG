@@ -1,0 +1,514 @@
+{
+  "name": "Enhanced Placement Email Monitor",
+  "nodes": [
+    {
+      "id": "gmail-trigger",
+      "name": "Gmail Trigger - Placement Emails",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "event": "messageReceived",
+        "simple": true,
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "filter": {
+            "hasAttachment": "both",
+            "maxResults": 10,
+            "query": "subject:placement OR subject:internship OR subject:job OR subject:career OR subject:opportunity OR subject:drive OR subject:campus OR subject:recruitment"
+          }
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_OAUTH2_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 Account"
+        }
+      },
+      "continueOnFail": false,
+      "alwaysOutputData": false,
+      "displayOptions": {},
+      "executeOnce": false
+    },
+    {
+      "id": "check-attachments",
+      "name": "Check for Attachments",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "attachment-check",
+              "leftValue": "={{ $json.attachments }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "rightType": "any"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "extract-email-info",
+      "name": "Extract Email Information",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [680, 200],
+      "parameters": {
+        "text": "={{ $json.textPlain || $json.snippet }}",
+        "schemaType": "fromAttributes",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "company_name",
+              "type": "string",
+              "description": "Name of the company or organization mentioned in the email"
+            },
+            {
+              "name": "job_roles",
+              "type": "array",
+              "description": "List of job positions, roles, or departments mentioned"
+            },
+            {
+              "name": "requirements",
+              "type": "array", 
+              "description": "Educational qualifications, skills, or experience requirements mentioned"
+            },
+            {
+              "name": "deadlines",
+              "type": "array",
+              "description": "Application deadlines, registration dates, or response deadlines"
+            },
+            {
+              "name": "event_dates",
+              "type": "array",
+              "description": "Interview dates, assessment dates, drive dates, or any scheduled events"
+            },
+            {
+              "name": "selection_status",
+              "type": "string",
+              "description": "Any indication of selection results, shortlisting, or rejection status"
+            },
+            {
+              "name": "contact_info",
+              "type": "string",
+              "description": "Contact person, email, or phone number for queries"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_API_CREDENTIAL_ID",
+          "name": "OpenAI GPT-4"
+        }
+      }
+    },
+    {
+      "id": "process-attachments",
+      "name": "Process Attachments",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [680, 400],
+      "parameters": {
+        "listPropertyName": "attachments",
+        "options": {}
+      }
+    },
+    {
+      "id": "check-file-type",
+      "name": "Check File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [900, 400],
+      "parameters": {
+        "options": {},
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.name }}",
+                    "rightValue": ".pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "endsWith",
+                      "caseSensitive": false
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.name }}",
+                    "rightValue": ".xlsx",
+                    "operator": {
+                      "type": "string",
+                      "operation": "endsWith",
+                      "caseSensitive": false
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "xlsx"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.name }}",
+                    "rightValue": ".xls",
+                    "operator": {
+                      "type": "string",
+                      "operation": "endsWith",
+                      "caseSensitive": false
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "xls"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "extract-pdf",
+      "name": "Extract PDF Content",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "extract-xlsx",
+      "name": "Extract XLSX Content", 
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [1120, 400],
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "extract-xls",
+      "name": "Extract XLS Content",
+      "type": "n8n-nodes-base.extractFromFile", 
+      "typeVersion": 1,
+      "position": [1120, 500],
+      "parameters": {
+        "operation": "xls",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
+      "id": "analyze-attachment-content",
+      "name": "Analyze Attachment Content",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [1340, 400],
+      "parameters": {
+        "text": "={{ $json.text || JSON.stringify($json) }}",
+        "schemaType": "fromAttributes", 
+        "attributes": {
+          "attributes": [
+            {
+              "name": "company_name",
+              "type": "string",
+              "description": "Company or organization name found in the document"
+            },
+            {
+              "name": "job_roles",
+              "type": "array",
+              "description": "Job positions, roles, or departments listed in the document"
+            },
+            {
+              "name": "requirements",
+              "type": "array",
+              "description": "Qualifications, skills, or requirements mentioned"
+            },
+            {
+              "name": "student_list",
+              "type": "array", 
+              "description": "List of student names if this appears to be a selection list"
+            },
+            {
+              "name": "selected_students",
+              "type": "array",
+              "description": "Names of selected or shortlisted students"
+            },
+            {
+              "name": "event_info",
+              "type": "string",
+              "description": "Event details, dates, times, or location information"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_API_CREDENTIAL_ID", 
+          "name": "OpenAI GPT-4"
+        }
+      }
+    },
+    {
+      "id": "check-name-selection",
+      "name": "Check Name in Selection List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 400],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Your name to search for (CUSTOMIZE THIS)\nconst YOUR_NAME = 'John Doe'; // Replace with your actual name\nconst YOUR_NAME_VARIATIONS = [\n  'John Doe',\n  'JOHN DOE', \n  'john doe',\n  'J. Doe',\n  'John D.',\n  'Doe, John'\n]; // Add variations of your name\n\n// Get extracted data\nconst extractedData = $input.all()[0]?.json?.output || {};\n\n// Combine all text sources to search\nlet searchText = '';\nif (extractedData.student_list) {\n  searchText += JSON.stringify(extractedData.student_list) + ' ';\n}\nif (extractedData.selected_students) {\n  searchText += JSON.stringify(extractedData.selected_students) + ' ';\n}\n\n// Also search in original text content\nconst originalText = $input.all()[0]?.json?.text || '';\nsearchText += originalText;\n\n// Search for name variations\nlet nameFound = false;\nlet foundVariation = '';\n\nfor (const nameVar of YOUR_NAME_VARIATIONS) {\n  if (searchText.toLowerCase().includes(nameVar.toLowerCase())) {\n    nameFound = true;\n    foundVariation = nameVar;\n    break;\n  }\n}\n\n// Determine selection status\nlet selectionStatus = 'NOT_FOUND';\nif (nameFound) {\n  // Check if it's in a selection context\n  if (searchText.toLowerCase().includes('selected') || \n      searchText.toLowerCase().includes('shortlisted') ||\n      searchText.toLowerCase().includes('qualified') ||\n      searchText.toLowerCase().includes('eligible')) {\n    selectionStatus = 'SELECTED';\n  } else if (searchText.toLowerCase().includes('rejected') ||\n             searchText.toLowerCase().includes('not selected') ||\n             searchText.toLowerCase().includes('unsuccessful')) {\n    selectionStatus = 'NOT_SELECTED';\n  } else {\n    selectionStatus = 'MENTIONED';\n  }\n}\n\nreturn {\n  ...extractedData,\n  name_search: {\n    name_found: nameFound,\n    found_variation: foundVariation,\n    selection_status: selectionStatus,\n    searched_name: YOUR_NAME\n  }\n};"
+      }
+    },
+    {
+      "id": "merge-email-attachment-data",
+      "name": "Merge Email & Attachment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Get email data and attachment analysis\nconst emailData = $input.first()?.json?.output || {};\nconst attachmentData = $input.all().slice(1) || [];\n\n// Merge all company information\nlet mergedData = {\n  company_name: emailData.company_name || 'Unknown Company',\n  job_roles: [...(emailData.job_roles || [])],\n  requirements: [...(emailData.requirements || [])],\n  deadlines: [...(emailData.deadlines || [])],\n  event_dates: [...(emailData.event_dates || [])],\n  selection_status: emailData.selection_status || '',\n  contact_info: emailData.contact_info || '',\n  email_info: {\n    subject: $('Gmail Trigger - Placement Emails').item.json.subject,\n    from: $('Gmail Trigger - Placement Emails').item.json.from,\n    date: $('Gmail Trigger - Placement Emails').item.json.date,\n    snippet: $('Gmail Trigger - Placement Emails').item.json.snippet\n  },\n  attachments_processed: attachmentData.length,\n  name_search_results: []\n};\n\n// Process attachment data\nattachmentData.forEach((attachment, index) => {\n  if (attachment.json) {\n    const data = attachment.json;\n    \n    // Merge company names (prefer non-empty ones)\n    if (data.company_name && data.company_name !== 'Unknown Company') {\n      mergedData.company_name = data.company_name;\n    }\n    \n    // Merge arrays\n    if (data.job_roles) mergedData.job_roles.push(...data.job_roles);\n    if (data.requirements) mergedData.requirements.push(...data.requirements);\n    if (data.event_dates) mergedData.event_dates.push(...data.event_dates);\n    \n    // Collect name search results\n    if (data.name_search) {\n      mergedData.name_search_results.push(data.name_search);\n    }\n  }\n});\n\n// Remove duplicates from arrays\nmergedData.job_roles = [...new Set(mergedData.job_roles)];\nmergedData.requirements = [...new Set(mergedData.requirements)];\nmergedData.deadlines = [...new Set(mergedData.deadlines)];\nmergedData.event_dates = [...new Set(mergedData.event_dates)];\n\n// Determine overall selection status\nlet overallSelectionStatus = 'NOT_FOUND';\nlet selectedInAny = false;\n\nmergedData.name_search_results.forEach(result => {\n  if (result.selection_status === 'SELECTED') {\n    selectedInAny = true;\n    overallSelectionStatus = 'SELECTED';\n  } else if (result.selection_status === 'NOT_SELECTED' && !selectedInAny) {\n    overallSelectionStatus = 'NOT_SELECTED';\n  } else if (result.selection_status === 'MENTIONED' && overallSelectionStatus === 'NOT_FOUND') {\n    overallSelectionStatus = 'MENTIONED';\n  }\n});\n\nmergedData.overall_selection_status = overallSelectionStatus;\n\nreturn mergedData;"
+      }
+    },
+    {
+      "id": "log-to-sheets",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [1120, 200],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEETS_ID"
+        },
+        "sheetName": {
+          "mode": "id", 
+          "value": "Placement Tracking"
+        },
+        "range": "A:L",
+        "options": {
+          "valueInputMode": "USER_ENTERED",
+          "valueRenderOption": "FORMATTED_VALUE"
+        },
+        "columns": {
+          "mappings": [
+            {
+              "column": "Date",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            },
+            {
+              "column": "Time", 
+              "value": "={{ new Date().toLocaleTimeString() }}"
+            },
+            {
+              "column": "Company",
+              "value": "={{ $json.company_name }}"
+            },
+            {
+              "column": "Email Subject",
+              "value": "={{ $json.email_info.subject }}"
+            },
+            {
+              "column": "From",
+              "value": "={{ $json.email_info.from }}"
+            },
+            {
+              "column": "Job Roles",
+              "value": "={{ $json.job_roles.join(', ') }}"
+            },
+            {
+              "column": "Requirements",
+              "value": "={{ $json.requirements.join(', ') }}"
+            },
+            {
+              "column": "Deadlines",
+              "value": "={{ $json.deadlines.join(', ') }}"
+            },
+            {
+              "column": "Event Dates",
+              "value": "={{ $json.event_dates.join(', ') }}"
+            },
+            {
+              "column": "Selection Status",
+              "value": "={{ $json.overall_selection_status }}"
+            },
+            {
+              "column": "Contact Info",
+              "value": "={{ $json.contact_info }}"
+            },
+            {
+              "column": "Attachments",
+              "value": "={{ $json.attachments_processed }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "id": "create-calendar-events",
+      "name": "Create Calendar Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200],
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "// Process event dates and create calendar event data\nconst eventDates = $json.event_dates || [];\nconst companyName = $json.company_name || 'Unknown Company';\nconst jobRoles = $json.job_roles || [];\n\nconst calendarEvents = [];\n\neventDates.forEach((eventStr, index) => {\n  // Try to parse date from string\n  let eventDate;\n  let eventTitle = `${companyName} - Placement Event`;\n  \n  // Common date patterns to look for\n  const datePatterns = [\n    /\\d{1,2}[-/]\\d{1,2}[-/]\\d{4}/,  // DD-MM-YYYY or MM-DD-YYYY\n    /\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}/,  // YYYY-MM-DD\n    /\\d{1,2}\\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{4}/i, // DD Month YYYY\n    /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\s+\\d{1,2},?\\s+\\d{4}/i // Month DD, YYYY\n  ];\n  \n  let dateMatch = null;\n  for (const pattern of datePatterns) {\n    dateMatch = eventStr.match(pattern);\n    if (dateMatch) break;\n  }\n  \n  if (dateMatch) {\n    try {\n      eventDate = new Date(dateMatch[0]);\n      if (isNaN(eventDate.getTime())) {\n        // If parsing failed, set to tomorrow\n        eventDate = new Date();\n        eventDate.setDate(eventDate.getDate() + 1);\n      }\n    } catch (e) {\n      // Default to tomorrow if parsing fails\n      eventDate = new Date();\n      eventDate.setDate(eventDate.getDate() + 1);\n    }\n  } else {\n    // If no date pattern found, set to tomorrow\n    eventDate = new Date();\n    eventDate.setDate(eventDate.getDate() + 1);\n  }\n  \n  // Determine event type and title\n  if (eventStr.toLowerCase().includes('interview')) {\n    eventTitle = `${companyName} - Interview`;\n  } else if (eventStr.toLowerCase().includes('test') || eventStr.toLowerCase().includes('assessment')) {\n    eventTitle = `${companyName} - Assessment/Test`;\n  } else if (eventStr.toLowerCase().includes('drive') || eventStr.toLowerCase().includes('campus')) {\n    eventTitle = `${companyName} - Campus Drive`;\n  } else if (jobRoles.length > 0) {\n    eventTitle = `${companyName} - ${jobRoles[0]} Event`;\n  }\n  \n  // Set start time to 9 AM and end time to 10 AM (1 hour duration)\n  const startTime = new Date(eventDate);\n  startTime.setHours(9, 0, 0, 0);\n  \n  const endTime = new Date(eventDate);\n  endTime.setHours(10, 0, 0, 0);\n  \n  calendarEvents.push({\n    title: eventTitle,\n    start: startTime.toISOString(),\n    end: endTime.toISOString(),\n    description: `Event Details: ${eventStr}\\n\\nCompany: ${companyName}\\nJob Roles: ${jobRoles.join(', ')}\\nEmail Subject: ${$json.email_info?.subject || ''}\\n\\nSelection Status: ${$json.overall_selection_status}`,\n    originalEventString: eventStr\n  });\n});\n\nreturn {\n  ...$json,\n  calendar_events: calendarEvents\n};"
+      }
+    },
+    {
+      "id": "add-to-calendar",
+      "name": "Add Events to Google Calendar",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1560, 200],
+      "parameters": {
+        "listPropertyName": "calendar_events",
+        "options": {}
+      }
+    },
+    {
+      "id": "create-calendar-event",
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [1780, 200],
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendar": {
+          "mode": "id",
+          "value": "primary"
+        },
+        "start": "={{ $json.start }}",
+        "end": "={{ $json.end }}",
+        "summary": "={{ $json.title }}",
+        "description": "={{ $json.description }}",
+        "options": {
+          "maxAttendees": 10,
+          "sendNotifications": true,
+          "sendUpdates": "all"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar OAuth2"
+        }
+      }
+    },
+    {
+      "id": "selection-alert-check",
+      "name": "Check for Selection Alert",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 80],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.overall_selection_status }}",
+              "rightValue": "SELECTED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "caseSensitive": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "send-selection-alert",
+      "name": "Send Selection Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1560, 80],
+      "parameters": {
+        "operation": "sendMessage", 
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "🚨 **SELECTION RESULT ALERT** 🚨\n\n🏢 **Company:** {{ $json.company_name }}\n✅ **Status:** SELECTED!\n👤 **Your Name Found:** {{ $json.name_search_results[0]?.found_variation || 'Yes' }}\n\n📧 **Email Details:**\n• Subject: {{ $json.email_info.subject }}\n• From: {{ $json.email_info.from }}\n• Date: {{ $json.email_info.date }}\n\n🎉 **Congratulations! You have been selected!**\n\n#PlacementAlert #Selected #{{ $json.company_name.replace(/\\s+/g, '') }}",
+        "additionalFields": {
+          "parseMode": "Markdown",
+          "disableNotification": false,
+          "disableWebPagePreview": true
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+{
+  "id": "format-company-summary",
+  "name": "Format Company Summary",
+  "type": "n8n-nodes-base.code",
+  "typeVersion": 2,
+  "position": [1560, 280],
+  "parameters": {
+    "language": "javaScript",
+    "jsCode": "// Format comprehensive company summary\nconst data = $json;\n\n// Helper function to format arrays\nfunction formatList(items, emptyText = 'Not specified') {\n  if (!items || items.length === 0) return emptyText;\n  return items.map(item => `• ${item}`).join('\\n');\n}\n\n// Helper function to format selection status\nfunction formatSelectionStatus(status, searchResults) {\n  let statusEmoji = '❓';\n  let statusText = 'Status unknown';\n  \n  switch (status) {\n    case 'SELECTED':\n      statusEmoji = '✅';\n      statusText = 'YOU ARE SELECTED!';\n      break;\n    case 'NOT_SELECTED':\n      statusEmoji = '❌';\n      statusText = 'NOT SELECTED';\n      break;\n    case 'MENTIONED':\n      statusEmoji = '📝';\n      statusText = 'YOUR NAME WAS MENTIONED';\n      break;\n    default:\n      statusEmoji = '📋';\n      statusText = 'NO SELECTION INFO FOUND';\n  }\n  \n  let searchInfo = '';\n  if (searchResults && searchResults.length > 0) {\n    const foundResult = searchResults.find(r => r.name_found);\n    if (foundResult) {\n      searchInfo = `\\nSearched for: ${foundResult.searched_name}\\nFound as: ${foundResult.found_variation}`;\n    }\n  }\n  \n  return `${statusEmoji} ${statusText}${searchInfo}`;\n}\n\n// Format the complete message\nconst message = `📋 **PLACEMENT UPDATE**\n\n🏢 **Company:** ${data.company_name}\n\n💼 **Roles:**\n${formatList(data.job_roles)}\n\n📋 **Requirements:**\n${formatList(data.requirements)}\n\n⏰ **Deadlines:**\n${formatList(data.deadlines)}\n\n📅 **Event Dates:**\n${formatList(data.event_dates)}\n\n📧 **Email Details:**\n• Subject: ${data.email_info?.subject || 'N/A'}\n• From: ${data.email_info?.from || 'N/A'}\n• Date: ${data.email_info?.date || 'N/A'}\n\n🎯 **SELECTION STATUS:**\n${formatSelectionStatus(data.overall_selection_status, data.name_search_results)}\n\n📎 **Attachments Processed:** ${data.attachments_processed || 0}\n\n${data.contact_info ? `📞 **Contact:** ${data.contact_info}\\n` : ''}\n#PlacementUpdate #${data.company_name.replace(/\\s+/g, '')}`;\n\nreturn {\n  telegram_message: message,\n  ...data\n};"
+  }
+}
